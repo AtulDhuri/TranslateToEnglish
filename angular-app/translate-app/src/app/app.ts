@@ -134,10 +134,7 @@ export class AppComponent {
     
     this.isLoading = true;
     
-    const protocol = window.location.protocol;
-    const hostname = window.location.hostname;
-    const apiUrl = `${protocol}//${hostname}:3000`;
-    this.http.post<any>(`${apiUrl}/translate-audio`, formData)
+    this.http.post<any>('/translate-audio', formData)
       .subscribe({
         next: (response) => {
           this.originalText = response.originalText;

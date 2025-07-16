@@ -67,20 +67,20 @@ app.post('/translate-audio', upload.single('audio'), async (req, res) => {
 // HTTP server for development
 const path = require('path');
 
-// Try to create HTTPS server
-try {
-  const httpsOptions = {
-    key: fs.readFileSync(path.join(__dirname, 'ssl', 'server.key')),
-    cert: fs.readFileSync(path.join(__dirname, 'ssl', 'server.crt'))
-  };
-  
-  https.createServer(httpsOptions, app).listen(3000, '0.0.0.0', () => {
-    console.log('HTTPS Server running on port 3000');
-    console.log('Access from mobile: https://YOUR_IP:3000');
-  });
-} catch (error) {
-  console.log('SSL certificates not found. Run create-ssl.bat first');
-  app.listen(3000, '0.0.0.0', () => {
-    console.log('HTTP Server running on port 3000 (SSL setup required for mobile)');
-  });
-}
+// Serve Angular build files
+app.use(express.static(path.join(__dirname, 'angular-app/translate-app/dist/translate-app/browser')));
+
+// Catch all handler for Angular routes
+app.get('*', (req, res) => {
+  if (req.path.startsWith('/translate-audio')) {
+    return; // Let API routes handle themselves
+  }
+  res.sendFile(path.join(__dirname, 'angular-app/translate-app/dist/translate-app/browser/index.html'));
+});
+
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`Server running on port ${PORT}`);
+  console.log('Serving Angular app and API from same server');
+  console.log('Make sure to set OPENAI_API_KEY in .env file');
+});
