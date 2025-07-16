@@ -61,8 +61,7 @@ export class AppComponent {
   originalText = '';
   translatedText = '';
   audioData = '';
-  mediaRecorder: MediaRecorder | null = null;
-  audioChunks: Blob[] = [];
+  recognition: any = null;
 
   constructor(private http: HttpClient) {}
 
@@ -74,93 +73,68 @@ export class AppComponent {
         return;
       }
 
-      // Simple audio request for mobile compatibility
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      
-      // Use basic MIME type for mobile compatibility
-      const mimeType = MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : 'audio/mp4';
-      
-      this.mediaRecorder = new MediaRecorder(stream, { mimeType });
-      this.audioChunks = [];
-      
-      this.mediaRecorder.ondataavailable = (event) => {
-        if (event.data.size > 0) {
-          this.audioChunks.push(event.data);
-        }
-      };
-      
-      this.mediaRecorder.onstop = () => {
-        stream.getTracks().forEach(track => track.stop());
-        this.processAudio();
-      };
-      
-      this.mediaRecorder.start(1000); // Record in 1-second chunks for better compression
-      this.isRecording = true;
-      
-      // Auto-stop after 30 seconds to prevent large files
-      setTimeout(() => {
-        if (this.isRecording) {
-          this.stopRecording();
-          alert('Recording stopped automatically after 30 seconds');
-        }
-      }, 30000);
-    } catch (error: any) {
-      console.error('Microphone error:', error);
-      if (error.name === 'NotAllowedError') {
-        alert('Please allow microphone access and try again.');
-      } else if (error.name === 'NotFoundError') {
-        alert('No microphone found on this device.');
+      // Use Web Speech API instead of file upload
+      if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+        const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+        this.recognition = new SpeechRecognition();
+        
+        this.recognition.continuous = false;
+        this.recognition.interimResults = false;
+        this.recognition.lang = 'hi-IN'; // Hindi
+        
+        this.recognition.onstart = () => {
+          this.isRecording = true;
+          console.log('Speech recognition started');
+        };
+        
+        this.recognition.onresult = (event: any) => {
+          const transcript = event.results[0][0].transcript;
+          console.log('Speech recognized:', transcript);
+          this.originalText = transcript;
+          this.translateText(transcript);
+        };
+        
+        this.recognition.onerror = (event: any) => {
+          console.error('Speech recognition error:', event.error);
+          this.isRecording = false;
+          alert('Speech recognition failed: ' + event.error);
+        };
+        
+        this.recognition.onend = () => {
+          this.isRecording = false;
+          console.log('Speech recognition ended');
+        };
+        
+        this.recognition.start();
       } else {
-        alert('Cannot access microphone. Try refreshing the page.');
+        alert('Speech recognition not supported in this browser');
       }
+    } catch (error: any) {
+      console.error('Speech recognition error:', error);
+      alert('Cannot start speech recognition');
     }
   }
 
   stopRecording() {
-    if (this.mediaRecorder) {
-      this.mediaRecorder.stop();
+    if (this.recognition) {
+      this.recognition.stop();
       this.isRecording = false;
     }
   }
 
-  processAudio() {
-    if (this.audioChunks.length === 0) {
-      alert('No audio recorded');
-      return;
-    }
-    
-    const mimeType = this.mediaRecorder?.mimeType || 'audio/webm';
-    const audioBlob = new Blob(this.audioChunks, { type: mimeType });
-    
-    console.log('Original audio size:', audioBlob.size, 'bytes');
-    
-    // Check if audio is too large (>10MB)
-    if (audioBlob.size > 10 * 1024 * 1024) {
-      alert('Audio too long. Please record shorter clips.');
-      this.isLoading = false;
-      return;
-    }
-    
-    const formData = new FormData();
-    formData.append('audio', audioBlob, 'recording.webm');
-    
+  translateText(text: string) {
     this.isLoading = true;
     
-    this.http.post<any>('/translate-audio', formData)
+    this.http.post<any>('/translate-text', { text })
       .subscribe({
         next: (response: any) => {
-          this.originalText = response.originalText;
           this.translatedText = response.translatedText;
           this.audioData = response.audioBase64;
           this.isLoading = false;
         },
         error: (error) => {
           console.error('Translation error:', error);
-          if (error.status === 0) {
-            alert('Network timeout. Try recording shorter audio.');
-          } else {
-            alert('Translation failed: ' + (error.error?.error || 'Please try again'));
-          }
+          alert('Translation failed: ' + (error.error?.error || 'Please try again'));
           this.isLoading = false;
         }
       });

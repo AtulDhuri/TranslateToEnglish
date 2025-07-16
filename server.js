@@ -22,6 +22,52 @@ const openai = new OpenAI({
 require('http').globalAgent.timeout = 120000;
 require('https').globalAgent.timeout = 120000;
 
+app.post('/translate-text', async (req, res) => {
+  console.log('📝 Text translation request received');
+  console.log('📄 Text:', req.body.text);
+  
+  try {
+    if (!req.body.text) {
+      console.log('❌ No text received');
+      return res.status(400).json({ error: 'No text received' });
+    }
+    
+    console.log('🔄 Starting translation with GPT...');
+    // Translate to English using GPT
+    const translation = await openai.chat.completions.create({
+      model: 'gpt-3.5-turbo',
+      messages: [{
+        role: 'user',
+        content: `Translate this Hindi/Marathi text to English: "${req.body.text}"`
+      }]
+    });
+    
+    const translatedText = translation.choices[0].message.content;
+    console.log('🌍 Translation result:', translatedText);
+    
+    console.log('🔄 Starting text-to-speech...');
+    // Text to speech using OpenAI TTS
+    const speech = await openai.audio.speech.create({
+      model: 'tts-1',
+      voice: 'alloy',
+      input: translatedText
+    });
+    
+    const buffer = Buffer.from(await speech.arrayBuffer());
+    console.log('🔊 Audio generated, size:', buffer.length, 'bytes');
+    
+    console.log('✅ Translation completed successfully');
+    res.json({
+      translatedText: translatedText,
+      audioBase64: buffer.toString('base64')
+    });
+    
+  } catch (error) {
+    console.error('❌ Translation error:', error.message);
+    res.status(500).json({ error: 'Translation failed: ' + error.message });
+  }
+});
+
 app.post('/translate-audio', upload.single('audio'), async (req, res) => {
   console.log('🎤 Audio upload received');
   console.log('📁 File info:', req.file ? { name: req.file.filename, size: req.file.size } : 'No file');
@@ -129,18 +175,8 @@ for (let attempt = 1; attempt <= 2; attempt++) {
     });
     
   } catch (error) {
-    console.error('❌ Translation error:', error.message);
-    console.error('🔍 Full error:', error);
-    
-    if (error.code === 'insufficient_quota') {
-      console.log('💳 OpenAI quota exceeded');
-      res.status(500).json({ error: 'OpenAI quota exceeded' });
-    } else if (error.code === 'invalid_api_key') {
-      console.log('🔑 Invalid OpenAI API key');
-      res.status(500).json({ error: 'Invalid API key' });
-    } else {
-      res.status(500).json({ error: 'Translation failed: ' + error.message });
-    }
+    console.error('❌ Audio translation error:', error.message);
+    res.status(500).json({ error: 'Audio translation failed: ' + error.message });
   }
 });
 
