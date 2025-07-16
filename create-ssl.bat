@@ -1,0 +1,5 @@
+@echo off
+mkdir ssl
+echo Generating SSL certificates...
+powershell -Command "& {$cert = New-SelfSignedCertificate -DnsName 'localhost','127.0.0.1' -CertStoreLocation 'cert:\LocalMachine\My'; $pwd = ConvertTo-SecureString -String 'password' -Force -AsPlainText; Export-PfxCertificate -Cert $cert -FilePath 'ssl\server.pfx' -Password $pwd; $pem = '-----BEGIN CERTIFICATE-----' + [System.Convert]::ToBase64String($cert.RawData, [System.Base64FormattingOptions]::InsertLineBreaks) + '-----END CERTIFICATE-----'; $pem | Out-File -FilePath 'ssl\server.crt' -Encoding ascii; $key = [System.Security.Cryptography.RSACng]::new($cert.PrivateKey.Key); $keyBytes = $key.ExportRSAPrivateKey(); $keyPem = '-----BEGIN RSA PRIVATE KEY-----' + [System.Convert]::ToBase64String($keyBytes, [System.Base64FormattingOptions]::InsertLineBreaks) + '-----END RSA PRIVATE KEY-----'; $keyPem | Out-File -FilePath 'ssl\server.key' -Encoding ascii}"
+echo SSL certificates created in ssl/ folder
