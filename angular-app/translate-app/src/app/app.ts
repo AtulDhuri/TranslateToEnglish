@@ -146,11 +146,9 @@ export class AppComponent {
     
     this.isLoading = true;
     
-    this.http.post<any>('/translate-audio', formData, {
-      timeout: 60000 // 60 second timeout
-    })
+    this.http.post<any>('/translate-audio', formData)
       .subscribe({
-        next: (response) => {
+        next: (response: any) => {
           this.originalText = response.originalText;
           this.translatedText = response.translatedText;
           this.audioData = response.audioBase64;
