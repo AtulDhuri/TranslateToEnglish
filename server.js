@@ -14,9 +14,14 @@ app.use(express.json());
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
-  timeout: 60000, // 60 seconds
-  maxRetries: 3
+  timeout: 120000, // 2 minutes
+  maxRetries: 2
 });
+
+// Set global timeout for all requests
+process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0'; // For development only
+require('http').globalAgent.timeout = 120000;
+require('https').globalAgent.timeout = 120000;
 
 app.post('/translate-audio', upload.single('audio'), async (req, res) => {
   console.log('🎤 Audio upload received');
