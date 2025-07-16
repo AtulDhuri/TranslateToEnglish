@@ -33,9 +33,14 @@ app.post('/translate-audio', upload.single('audio'), async (req, res) => {
     const stats = fs.statSync(req.file.path);
     console.log('📊 Audio file size:', stats.size, 'bytes');
     
-    if (stats.size > 25 * 1024 * 1024) { // 25MB limit
-      console.log('❌ File too large for Whisper API');
-      return res.status(400).json({ error: 'Audio file too large' });
+    if (stats.size > 10 * 1024 * 1024) { // 10MB limit for faster processing
+      console.log('❌ File too large for Whisper API:', stats.size, 'bytes');
+      return res.status(400).json({ error: 'Audio file too large. Record shorter clips.' });
+    }
+    
+    if (stats.size < 1000) { // Too small
+      console.log('❌ File too small:', stats.size, 'bytes');
+      return res.status(400).json({ error: 'Audio file too small. Record longer.' });
     }
     
     // Speech to text using OpenAI Whisper with timeout and retry

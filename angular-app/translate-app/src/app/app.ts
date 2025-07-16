@@ -94,8 +94,16 @@ export class AppComponent {
         this.processAudio();
       };
       
-      this.mediaRecorder.start();
+      this.mediaRecorder.start(1000); // Record in 1-second chunks for better compression
       this.isRecording = true;
+      
+      // Auto-stop after 30 seconds to prevent large files
+      setTimeout(() => {
+        if (this.isRecording) {
+          this.stopRecording();
+          alert('Recording stopped automatically after 30 seconds');
+        }
+      }, 30000);
     } catch (error: any) {
       console.error('Microphone error:', error);
       if (error.name === 'NotAllowedError') {
@@ -123,18 +131,24 @@ export class AppComponent {
     
     const mimeType = this.mediaRecorder?.mimeType || 'audio/webm';
     const audioBlob = new Blob(this.audioChunks, { type: mimeType });
+    
+    console.log('Original audio size:', audioBlob.size, 'bytes');
+    
+    // Check if audio is too large (>10MB)
+    if (audioBlob.size > 10 * 1024 * 1024) {
+      alert('Audio too long. Please record shorter clips.');
+      this.isLoading = false;
+      return;
+    }
+    
     const formData = new FormData();
-    
-    // Determine file extension based on MIME type
-    let fileName = 'recording.webm';
-    if (mimeType.includes('mp4')) fileName = 'recording.mp4';
-    if (mimeType.includes('wav')) fileName = 'recording.wav';
-    
-    formData.append('audio', audioBlob, fileName);
+    formData.append('audio', audioBlob, 'recording.webm');
     
     this.isLoading = true;
     
-    this.http.post<any>('/translate-audio', formData)
+    this.http.post<any>('/translate-audio', formData, {
+      timeout: 60000 // 60 second timeout
+    })
       .subscribe({
         next: (response) => {
           this.originalText = response.originalText;
@@ -144,7 +158,11 @@ export class AppComponent {
         },
         error: (error) => {
           console.error('Translation error:', error);
-          alert('Translation failed. Please try again.');
+          if (error.status === 0) {
+            alert('Network timeout. Try recording shorter audio.');
+          } else {
+            alert('Translation failed: ' + (error.error?.error || 'Please try again'));
+          }
           this.isLoading = false;
         }
       });
