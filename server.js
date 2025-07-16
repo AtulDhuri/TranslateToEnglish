@@ -13,7 +13,9 @@ app.use(cors());
 app.use(express.json());
 
 const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY
+  apiKey: process.env.OPENAI_API_KEY,
+  timeout: 60000, // 60 seconds
+  maxRetries: 3
 });
 
 app.post('/translate-audio', upload.single('audio'), async (req, res) => {
@@ -27,12 +29,42 @@ app.post('/translate-audio', upload.single('audio'), async (req, res) => {
     }
     
     console.log('🔄 Starting speech-to-text with Whisper...');
-    // Speech to text using OpenAI Whisper
-    const transcription = await openai.audio.transcriptions.create({
-      file: fs.createReadStream(req.file.path),
-      model: 'whisper-1',
-      language: 'hi' // Hindi/Marathi
-    });
+    // Check file size first
+    const stats = fs.statSync(req.file.path);
+    console.log('📊 Audio file size:', stats.size, 'bytes');
+    
+    if (stats.size > 25 * 1024 * 1024) { // 25MB limit
+      console.log('❌ File too large for Whisper API');
+      return res.status(400).json({ error: 'Audio file too large' });
+    }
+    
+    // Speech to text using OpenAI Whisper with timeout and retry
+    let transcription;
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      try {
+        console.log(`📡 Whisper attempt ${attempt}/2`);
+        transcription = await Promise.race([
+          openai.audio.transcriptions.create({
+            file: fs.createReadStream(req.file.path),
+            model: 'whisper-1',
+            language: 'hi'
+          }),
+          new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('Request timeout after 30s')), 30000)
+          )
+        ]);
+        console.log('✅ Whisper API call successful');
+        break;
+      } catch (whisperError) {
+        console.log(`❌ Whisper attempt ${attempt} failed:`, whisperError.message);
+        if (whisperError.message.includes('ECONNRESET')) {
+          console.log('🔌 Connection reset by OpenAI server');
+        }
+        if (attempt === 2) throw whisperError;
+        console.log('⏳ Waiting 3 seconds before retry...');
+        await new Promise(resolve => setTimeout(resolve, 3000));
+      }
+    }
     
     console.log('📝 Transcription result:', transcription.text);
     
