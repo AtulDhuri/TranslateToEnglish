@@ -19,7 +19,6 @@ const openai = new OpenAI({
 });
 
 // Set global timeout for all requests
-process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0'; // For development only
 require('http').globalAgent.timeout = 120000;
 require('https').globalAgent.timeout = 120000;
 
@@ -50,31 +49,42 @@ app.post('/translate-audio', upload.single('audio'), async (req, res) => {
     
     // Speech to text using OpenAI Whisper with timeout and retry
     let transcription;
-    for (let attempt = 1; attempt <= 2; attempt++) {
-      try {
-        console.log(`📡 Whisper attempt ${attempt}/2`);
-        transcription = await Promise.race([
-          openai.audio.transcriptions.create({
-            file: fs.createReadStream(req.file.path),
-            model: 'whisper-1',
-            language: 'hi'
-          }),
-          new Promise((_, reject) => 
-            setTimeout(() => reject(new Error('Request timeout after 30s')), 30000)
-          )
-        ]);
-        console.log('✅ Whisper API call successful');
-        break;
-      } catch (whisperError) {
-        console.log(`❌ Whisper attempt ${attempt} failed:`, whisperError.message);
-        if (whisperError.message.includes('ECONNRESET')) {
-          console.log('🔌 Connection reset by OpenAI server');
-        }
-        if (attempt === 2) throw whisperError;
-        console.log('⏳ Waiting 3 seconds before retry...');
-        await new Promise(resolve => setTimeout(resolve, 3000));
-      }
+for (let attempt = 1; attempt <= 2; attempt++) {
+  try {
+    console.log(`📡 Whisper attempt ${attempt}/2`);
+
+    // Whisper transcription with timeout (120s)
+    transcription = await Promise.race([
+      openai.audio.transcriptions.create({
+        file: fs.createReadStream(req.file.path),
+        model: 'whisper-1',
+        language: 'hi' // use 'mr' for Marathi if needed, or omit to auto-detect
+      }),
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Request timeout after 120s')), 120000)
+      )
+    ]);
+
+    console.log('✅ Whisper API call successful');
+    break; // exit loop if success
+  } catch (whisperError) {
+    console.log(`❌ Whisper attempt ${attempt} failed:`, whisperError.message);
+
+    if (whisperError.message.includes('ECONNRESET')) {
+      console.log('🔌 Connection reset by OpenAI server');
+    } else if (whisperError.message.includes('timeout')) {
+      console.log('⏱️ Whisper request timed out.');
     }
+
+    if (attempt === 2) {
+      throw new Error(`❌ All attempts failed: ${whisperError.message}`);
+    }
+
+    console.log('⏳ Waiting 3 seconds before retry...');
+    await new Promise(resolve => setTimeout(resolve, 3000));
+  }
+}
+
     
     console.log('📝 Transcription result:', transcription.text);
     
