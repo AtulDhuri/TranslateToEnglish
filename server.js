@@ -68,15 +68,22 @@ app.post('/translate-audio', upload.single('audio'), async (req, res) => {
 const path = require('path');
 
 // Serve Angular build files
-app.use(express.static(path.join(__dirname, 'angular-app/translate-app/dist/translate-app/browser')));
-
-// Catch all handler for Angular routes
-app.get('*', (req, res) => {
-  if (req.path.startsWith('/translate-audio')) {
-    return; // Let API routes handle themselves
-  }
-  res.sendFile(path.join(__dirname, 'angular-app/translate-app/dist/translate-app/browser/index.html'));
-});
+const distPath = path.join(__dirname, 'angular-app/translate-app/dist/translate-app/browser');
+if (fs.existsSync(distPath)) {
+  app.use(express.static(distPath));
+  
+  // Catch all handler for Angular routes
+  app.get('*', (req, res) => {
+    if (req.path.startsWith('/translate-audio')) {
+      return; // Let API routes handle themselves
+    }
+    res.sendFile(path.join(distPath, 'index.html'));
+  });
+} else {
+  app.get('/', (req, res) => {
+    res.send('Angular app not built. Run: npm run build');
+  });
+}
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, '0.0.0.0', () => {

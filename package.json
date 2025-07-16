@@ -3,8 +3,8 @@
   "version": "1.0.0",
   "scripts": {
     "start": "node server.js",
-    "build": "cd angular-app/translate-app && ng build",
-    "build-and-start": "npm run build && npm start",
+    "build": "cd angular-app/translate-app && npm install && ng build",
+    "postinstall": "cd angular-app/translate-app && npm install && ng build",
     "dev": "nodemon server.js"
   },
   "dependencies": {
@@ -13,7 +13,8 @@
     "openai": "^4.20.1",
     "form-data": "^4.0.0",
     "cors": "^2.8.5",
-    "dotenv": "^16.3.1"
+    "dotenv": "^16.3.1",
+    "@angular/cli": "^17.0.0"
   },
   "devDependencies": {
     "nodemon": "^3.0.1"
